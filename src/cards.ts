@@ -40,7 +40,7 @@ export function allOffButton(label: string, confirm: string, lights: string[]): 
     grid_options: { columns: 6, rows: 1 },
     tap_action: {
       action: "perform-action",
-      perform_action: "light.turn_off",
+      perform_action: "homeassistant.turn_off",
       target: { entity_id: lights },
       confirmation: { text: confirm },
     },

@@ -2,7 +2,7 @@
 
 Eine Dashboard-Strategie für Home Assistant, die dein Dashboard vollständig automatisch aus der Bereichs-, Geräte- und Entitäten-Registry erzeugt.
 
-**Startseite:** Bereichskarten (optional nach Etagen gruppiert) und darunter alle Lampen, sortiert nach Bereich, inklusive Helligkeitsregler für dimmbare Lampen und einem Button „Alle Lampen aus“.
+**Startseite:** Pro Bereich ein Abschnitt mit der Bereichskarte als Kopf und den Lampen des Bereichs darunter (optional nach Etagen gruppiert). Bereiche ohne Lampen erscheinen gesammelt unter „Weitere Bereiche“. Dimmbare Lampen bekommen einen Helligkeitsregler, dazu gibt es einen Button „Alle Lampen aus“.
 
 **Detailansichten:** Ein Tipp auf eine Bereichskarte (oder auf die Überschrift einer Lampengruppe) öffnet eine Unteransicht mit allen Geräten dieses Bereichs, gruppiert nach Typ: Beleuchtung, Rollläden, Klima, Schalter, Ventilatoren, Medien, Schlösser, Staubsauger, Kameras, Status, Sensoren und Sonstiges.
 
@@ -38,6 +38,7 @@ strategy:
   area_order: [wohnzimmer, kuche, schlafzimmer]   # Rest folgt alphabetisch
   hidden_areas: [technikraum]
   hidden_entities: [light.test_lampe]
+  extra_lights: [switch.buero_spot]  # Schalter, die als Lampe gelten sollen
   group_by_floor: true          # Bereichskarten nach Etagen (Standard: true)
   show_area_cards: true         # Standard: true
   show_unassigned_lights: true  # Lampen ohne Bereich (Standard: true)

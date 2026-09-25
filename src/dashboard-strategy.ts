@@ -11,6 +11,7 @@ import {
 } from "./helpers";
 import { getTranslator } from "./localize";
 import type {
+  AreaRegistryEntry,
   DashboardStrategyConfig,
   HomeAssistant,
   LovelaceConfig,
@@ -19,6 +20,7 @@ import type {
 } from "./types";
 
 export const AREA_VIEW_STRATEGY = "custom:lights-area-view";
+const MAX_COLUMNS = 4;
 
 export class LightsAreaDashboardStrategy extends HTMLElement {
   static async generate(
@@ -27,59 +29,79 @@ export class LightsAreaDashboardStrategy extends HTMLElement {
   ): Promise<LovelaceConfig> {
     const t = getTranslator(hass);
     const byArea = groupByArea(hass, getVisibleEntities(hass, config.hidden_entities));
+    const extra = new Set(config.extra_lights ?? []);
+    const showAreaCards = config.show_area_cards !== false;
 
     const areas = getSortedAreas(hass, config.area_order, config.hidden_areas).filter(
       (a) => config.show_empty_areas || (byArea.get(a.area_id)?.length ?? 0) > 0,
     );
 
     const lightsOf = (key: string): string[] =>
-      sortByName(hass, (byArea.get(key) ?? []).filter((id) => computeDomain(id) === "light"));
+      sortByName(
+        hass,
+        (byArea.get(key) ?? []).filter((id) => computeDomain(id) === "light" || extra.has(id)),
+      );
 
-    const sections: LovelaceSectionConfig[] = [];
+    const useFloors =
+      config.group_by_floor !== false && Object.keys(hass.floors ?? {}).length > 0;
+    const groups = useFloors ? groupAreasByFloor(hass, areas) : [{ floor: undefined, areas }];
 
-    // 1) Bereichskarten (optional nach Etagen) – Einstieg in die Detailansichten
-    if (config.show_area_cards !== false && areas.length) {
-      const useFloors =
-        config.group_by_floor !== false && Object.keys(hass.floors ?? {}).length > 0;
-      const groups = useFloors
-        ? groupAreasByFloor(hass, areas)
-        : [{ floor: undefined, areas }];
-      for (const group of groups) {
-        sections.push({
+    const allLights: string[] = [];
+    const bodySections: LovelaceSectionConfig[] = [];
+
+    for (const group of groups) {
+      const withLights: { area: AreaRegistryEntry; lights: string[] }[] = [];
+      const withoutLights: AreaRegistryEntry[] = [];
+      for (const area of group.areas) {
+        const lights = lightsOf(area.area_id);
+        if (lights.length) {
+          withLights.push({ area, lights });
+          allLights.push(...lights);
+        } else {
+          withoutLights.push(area);
+        }
+      }
+      if (!withLights.length && (!showAreaCards || !withoutLights.length)) continue;
+
+      // Etagen-Trenner über die volle Breite
+      if (useFloors) {
+        bodySections.push({
           type: "grid",
+          column_span: MAX_COLUMNS,
           cards: [
-            headingCard(
-              group.floor?.name ?? t("areas"),
-              group.floor?.icon ?? "mdi:floor-plan",
-            ),
-            ...group.areas.map((a) => areaCard(a)),
+            headingCard(group.floor?.name ?? t("no_floor"), group.floor?.icon ?? "mdi:home-floor-0"),
           ],
         });
       }
-    }
 
-    // 2) Lampen je Bereich
-    const lightSections: LovelaceSectionConfig[] = [];
-    const allLights: string[] = [];
+      // Ein Abschnitt je Bereich: Bereichskarte als Kopf, darunter die Lampen
+      for (const { area, lights } of withLights) {
+        const head = showAreaCards
+          ? { ...areaCard(area), grid_options: { columns: 12 } }
+          : headingCard(area.name, area.icon ?? "mdi:lightbulb-group", areaPath(area.area_id));
+        bodySections.push({
+          type: "grid",
+          cards: [head, ...lights.map((id) => lightTile(hass, id))],
+        });
+      }
 
-    for (const area of areas) {
-      const lights = lightsOf(area.area_id);
-      if (!lights.length) continue;
-      allLights.push(...lights);
-      lightSections.push({
-        type: "grid",
-        cards: [
-          headingCard(area.name, area.icon ?? "mdi:lightbulb-group", areaPath(area.area_id)),
-          ...lights.map((id) => lightTile(hass, id)),
-        ],
-      });
+      // Bereiche ohne Lampen gesammelt, damit man trotzdem hineinnavigieren kann
+      if (showAreaCards && withoutLights.length) {
+        bodySections.push({
+          type: "grid",
+          cards: [
+            headingCard(t("other_areas"), "mdi:floor-plan"),
+            ...withoutLights.map((a) => areaCard(a)),
+          ],
+        });
+      }
     }
 
     if (config.show_unassigned_lights !== false) {
       const lights = lightsOf(UNASSIGNED);
       if (lights.length) {
         allLights.push(...lights);
-        lightSections.push({
+        bodySections.push({
           type: "grid",
           cards: [
             headingCard(t("unassigned"), "mdi:lightbulb-question"),
@@ -89,27 +111,26 @@ export class LightsAreaDashboardStrategy extends HTMLElement {
       }
     }
 
-    const lightsHeader: LovelaceSectionConfig = {
+    const header: LovelaceSectionConfig = {
       type: "grid",
+      column_span: MAX_COLUMNS,
       cards: [headingCard(t("lights"), "mdi:lightbulb-multiple")],
     };
     if (!allLights.length) {
-      lightsHeader.cards.push(markdownCard(t("no_lights")));
+      header.cards.push(markdownCard(t("no_lights")));
     } else if (config.show_all_off_button !== false) {
-      lightsHeader.cards.push(allOffButton(t("all_off"), t("all_off_confirm"), allLights));
+      header.cards.push(allOffButton(t("all_off"), t("all_off_confirm"), allLights));
     }
-    sections.push(lightsHeader, ...lightSections);
 
     const mainView: LovelaceViewConfig = {
       title: t("overview"),
       path: "home",
       icon: "mdi:home",
       type: "sections",
-      max_columns: 4,
-      sections,
+      max_columns: MAX_COLUMNS,
+      sections: [header, ...bodySections],
     };
 
-    // 3) Unteransichten je Bereich – werden erst beim Öffnen generiert
     const areaViews: LovelaceViewConfig[] = areas.map((area) => ({
       title: area.name,
       path: areaPath(area.area_id),

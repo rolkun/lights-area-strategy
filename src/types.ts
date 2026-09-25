@@ -95,6 +95,8 @@ export interface DashboardStrategyConfig {
   show_unassigned_lights?: boolean;
   /** Button „Alle Lampen aus“ anzeigen (Standard: true). */
   show_all_off_button?: boolean;
+  /** Zusätzliche Entitäten (z. B. switch.*), die auf der Startseite als Lampe gelten. */
+  extra_lights?: string[];
   /** Bereiche ohne Entitäten trotzdem anzeigen (Standard: false). */
   show_empty_areas?: boolean;
 }
