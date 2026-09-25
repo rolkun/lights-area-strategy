@@ -1,4 +1,6 @@
 # Lights & Areas Strategy
+![Startseite mit Bereichskarten und Lampen](images/overview.png)
+![Detailansicht eines Bereichs](images/area.png)
 
 Eine Dashboard-Strategie für Home Assistant, die dein Dashboard vollständig automatisch aus der Bereichs-, Geräte- und Entitäten-Registry erzeugt.
 
